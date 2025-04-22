@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASCII Line Animator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles if needed, Tailwind is preferred */
+        body {
+            font-family: 'Inter', sans-serif; /* Default font */
+        }
+        /* Ensure monospace font for the animation display and input */
+        #ascii-display, #frames-input {
+            font-family: monospace, 'Courier New', Courier;
+            white-space: pre; /* Preserve whitespace and line breaks */
+        }
+        #ascii-display {
+             overflow-x: auto; /* Add scroll if content overflows */
+             min-height: 1.5em; /* Ensure space even if empty */
+        }
+         #frames-input {
+            min-height: 100px; /* Give some initial height */
+            white-space: pre; /* Important for seeing spaces correctly */
+            overflow-wrap: normal; /* Prevent wrapping */
+            overflow-x: auto; /* Allow horizontal scrolling */
+         }
+    </style>
+</head>
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div class="bg-white p-6 rounded-lg shadow-md w-full max-w-xl text-center">
+        <h1 class="text-2xl font-bold mb-4 text-gray-800">ASCII Line Animator</h1>
+
+        <div id="ascii-display" class="bg-gray-900 text-green-400 p-4 rounded-md text-lg mb-4 border border-gray-700">
+            Enter frames below and click Load.
+        </div>
+
+        <div class="mb-4">
+            <label for="frames-input" class="block text-sm font-medium text-gray-700 mb-1 text-left">Animation Frames (one per line):</label>
+            <textarea id="frames-input" class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="[ Frame 1 ]&#10;{ Frame 2 }&#10;< Frame 3 >"></textarea>
+             <button id="load-button" class="mt-2 bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-md transition duration-150 ease-in-out w-full sm:w-auto">
+                Load Frames
+            </button>
+        </div>
+
+        <div class="flex flex-col sm:flex-row justify-center items-center space-y-2 sm:space-y-0 sm:space-x-3 mb-4">
+            <button id="start-button" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-md transition duration-150 ease-in-out w-full sm:w-auto">
+                Start
+            </button>
+            <button id="stop-button" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-md transition duration-150 ease-in-out w-full sm:w-auto">
+                Stop
+            </button>
+            <div class="flex items-center space-x-2 w-full sm:w-auto">
+                 <label for="speed-input" class="text-sm font-medium text-gray-700 whitespace-nowrap">Speed (ms):</label>
+                 <input type="number" id="speed-input" value="200" min="50" max="2000" step="50" class="border border-gray-300 rounded-md p-1 w-20 text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+        </div>
+         <div id="message-box" class="mt-2 text-sm text-gray-600 min-h-[1.25em]"></div>
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const displayElement = document.getElementById('ascii-display');
+        const framesInput = document.getElementById('frames-input');
+        const loadButton = document.getElementById('load-button');
+        const startButton = document.getElementById('start-button');
+        const stopButton = document.getElementById('stop-button');
+        const speedInput = document.getElementById('speed-input');
+        const messageBox = document.getElementById('message-box');
+
+        // --- State Variables ---
+        let frames = []; // Initialize frames array - will be populated from textarea
+        let currentFrameIndex = 0; // Index of the frame currently shown
+        let intervalId = null;     // ID returned by setInterval, used to stop
+        let animationSpeed = parseInt(speedInput.value, 10) || 200; // Initial speed in milliseconds
+
+        // --- Functions ---
+
+        /**
+         * Loads frames from the textarea input into the frames array.
+         */
+        function loadFrames() {
+            stopAnimation(); // Stop any current animation
+            const inputText = framesInput.value;
+            // Split by newline characters (handles both \n and \r\n)
+            // Filter out empty lines that might result from splitting
+            frames = inputText.split(/\r?\n/).filter(line => line.trim() !== '' || line.length > 0); // Keep lines that are just spaces, filter truly empty lines
+
+            currentFrameIndex = 0; // Reset frame index
+
+            if (frames.length > 0) {
+                displayElement.textContent = frames[0]; // Show the first frame immediately
+                displayMessage(`${frames.length} frame(s) loaded. Click Start to animate.`);
+            } else {
+                displayElement.textContent = 'No valid frames entered.';
+                displayMessage('Error: Please enter at least one frame in the text area.');
+                frames = []; // Ensure frames is empty if input was invalid
+            }
+             console.log("Frames loaded:", frames);
+        }
+
+        /**
+         * Displays the next frame in the animation sequence.
+         */
+        function nextFrame() {
+            // This check is mostly defensive, startAnimation should prevent this
+            if (!frames || frames.length === 0) {
+                 displayMessage("Error: No frames loaded to animate.");
+                 stopAnimation();
+                 return;
+            }
+            // Display the current frame
+            displayElement.textContent = frames[currentFrameIndex];
+
+            // Move to the next frame index
+            currentFrameIndex++;
+
+            // Loop back to the beginning if we've reached the end
+            if (currentFrameIndex >= frames.length) {
+                currentFrameIndex = 0;
+            }
+        }
+
+        /**
+         * Starts the animation loop.
+         */
+        function startAnimation() {
+            // Clear any previous message
+            displayMessage("");
+
+            // Prevent multiple intervals running simultaneously
+            if (intervalId !== null) {
+                stopAnimation(); // Stop existing animation first
+            }
+
+            // Make sure frames have been loaded
+             if (!frames || frames.length === 0) {
+                 displayMessage("Error: Please load frames using the 'Load Frames' button first.");
+                 return;
+            }
+
+            // Get the current speed from the input
+            animationSpeed = parseInt(speedInput.value, 10);
+             // Basic validation for speed
+            if (isNaN(animationSpeed) || animationSpeed < 50) {
+                animationSpeed = 200; // Default to 200ms if invalid
+                speedInput.value = animationSpeed; // Update input visually
+                displayMessage("Info: Speed reset to 200ms (minimum 50ms).");
+            }
+
+
+            // Start the interval timer
+            intervalId = setInterval(nextFrame, animationSpeed);
+            console.log(`Animation started with interval ID: ${intervalId}, speed: ${animationSpeed}ms`);
+        }
+
+        /**
+         * Stops the animation loop.
+         */
+        function stopAnimation() {
+            if (intervalId !== null) {
+                clearInterval(intervalId); // Stop the interval
+                intervalId = null;         // Reset the interval ID
+                console.log("Animation stopped.");
+                 // Optionally display a stopped message if needed
+                 // displayMessage("Animation stopped.");
+            } else {
+                 console.log("Animation was not running.");
+            }
+        }
+
+        /**
+         * Displays a message to the user.
+         * @param {string} text - The message to display.
+         */
+        function displayMessage(text) {
+            messageBox.textContent = text;
+        }
+
+
+        // --- Event Listeners ---
+
+        // Load Frames button click
+        loadButton.addEventListener('click', loadFrames);
+
+        // Start button click
+        startButton.addEventListener('click', startAnimation);
+
+        // Stop button click
+        stopButton.addEventListener('click', stopAnimation);
+
+        // Speed input change
+        speedInput.addEventListener('change', () => {
+             const newSpeed = parseInt(speedInput.value, 10);
+             // Basic validation
+             if (isNaN(newSpeed) || newSpeed < 50) {
+                 displayMessage("Error: Speed must be a number >= 50.");
+                 // Optionally reset to previous valid speed or a default
+                 // speedInput.value = animationSpeed; // Revert visually
+                 return; // Don't restart animation if speed is invalid
+             }
+
+             animationSpeed = newSpeed; // Update the speed variable
+             displayMessage(""); // Clear any previous error/info message
+
+             // If the animation is currently running, restart it with the new speed
+             if (intervalId !== null) {
+                 console.log(`Restarting animation with new speed: ${animationSpeed}ms`);
+                 startAnimation(); // This will stop the old one and start a new one
+             }
+        });
+
+        // --- Initial State ---
+        // Stop animation initially (belt-and-suspenders)
+        stopAnimation();
+        // Clear any initial message
+        displayMessage("");
+
+    </script>
+
+</body>
+</html>
