@@ -18,6 +18,7 @@
         #ascii-display {
              overflow-x: auto; /* Add scroll if content overflows */
              min-height: 1.5em; /* Ensure space even if empty */
+             /* Default alignment set by JS on load */
         }
          #frames-input {
             min-height: 150px; /* Give some more initial height */
@@ -57,19 +58,33 @@
             </div>
         </div>
 
-        <div class="flex flex-col sm:flex-row justify-center items-center space-y-2 sm:space-y-0 sm:space-x-3 mb-4 border-t pt-4 mt-4">
-            <button id="start-button" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-md transition duration-150 ease-in-out w-full sm:w-auto">
-                Start
-            </button>
-            <button id="stop-button" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-md transition duration-150 ease-in-out w-full sm:w-auto">
-                Stop
-            </button>
-            <div class="flex items-center space-x-2 w-full sm:w-auto">
-                 <label for="speed-input" class="text-sm font-medium text-gray-700 whitespace-nowrap">Speed (ms):</label>
-                 <input type="number" id="speed-input" value="200" min="50" max="2000" step="50" class="border border-gray-300 rounded-md p-1 w-20 text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <div class="border-t pt-4 mt-4 space-y-4">
+            <div class="flex flex-col sm:flex-row justify-center items-center flex-wrap gap-x-4 gap-y-2">
+                <button id="start-button" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-md transition duration-150 ease-in-out w-full sm:w-auto">
+                    Start
+                </button>
+                <button id="stop-button" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-md transition duration-150 ease-in-out w-full sm:w-auto">
+                    Stop
+                </button>
+                <div class="flex items-center space-x-2 w-full sm:w-auto justify-center">
+                     <label for="speed-input" class="text-sm font-medium text-gray-700 whitespace-nowrap">Speed (ms):</label>
+                     <input type="number" id="speed-input" value="200" min="50" max="2000" step="50" class="border border-gray-300 rounded-md p-1 w-20 text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
             </div>
+            <fieldset class="flex justify-center items-center gap-x-4 gap-y-2">
+                <legend class="text-sm font-medium text-gray-700 mr-2">Alignment:</legend>
+                <div class="flex items-center">
+                    <input type="radio" id="align-left" name="alignment" value="left" class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500" checked>
+                    <label for="align-left" class="ml-2 block text-sm text-gray-900">Left</label>
+                </div>
+                <div class="flex items-center">
+                    <input type="radio" id="align-center" name="alignment" value="center" class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                    <label for="align-center" class="ml-2 block text-sm text-gray-900">Center</label>
+                </div>
+            </fieldset>
         </div>
-         <div id="message-box" class="mt-2 text-sm text-gray-600 min-h-[1.25em]"></div>
+
+         <div id="message-box" class="mt-4 text-sm text-gray-600 min-h-[1.25em]"></div>
     </div>
 
     <script>
@@ -83,6 +98,8 @@
         const startButton = document.getElementById('start-button');
         const stopButton = document.getElementById('stop-button');
         const speedInput = document.getElementById('speed-input');
+        const alignLeftRadio = document.getElementById('align-left');
+        const alignCenterRadio = document.getElementById('align-center');
         const messageBox = document.getElementById('message-box');
 
         // --- State Variables ---
@@ -94,32 +111,45 @@
         // --- Functions ---
 
         /**
+         * Updates the text alignment of the display element based on radio button selection.
+         */
+        function updateAlignment() {
+            // Remove existing alignment classes first
+            displayElement.classList.remove('text-left', 'text-center');
+
+            if (alignCenterRadio.checked) {
+                displayElement.classList.add('text-center');
+                console.log("Alignment set to center");
+            } else {
+                // Default to left alignment if center is not checked
+                displayElement.classList.add('text-left');
+                 console.log("Alignment set to left");
+            }
+        }
+
+
+        /**
          * Loads frames from the textarea input into the frames array.
-         * Called by the "Load Frames from Textarea" button or after loading a file.
          */
         function loadFrames() {
-            stopAnimation(); // Stop any current animation
+            stopAnimation();
             const inputText = framesInput.value;
-            // Split by newline characters (handles both \n and \r\n)
-            // Filter out empty lines that might result from splitting
-            frames = inputText.split(/\r?\n/).filter(line => line.trim() !== '' || line.length > 0); // Keep lines that are just spaces, filter truly empty lines
-
-            currentFrameIndex = 0; // Reset frame index
+            frames = inputText.split(/\r?\n/).filter(line => line.trim() !== '' || line.length > 0);
+            currentFrameIndex = 0;
 
             if (frames.length > 0) {
-                displayElement.textContent = frames[0]; // Show the first frame
-                // Adjust message slightly depending on whether it was triggered by user or file load
-                if (event && event.target.id === 'load-button') {
-                     displayMessage(`${frames.length} frame(s) loaded from textarea. Click Start to animate.`);
-                } else {
-                     // Assume called after file load if event target isn't the button
-                     displayMessage(`${frames.length} frame(s) processed from file. Click Start to animate.`);
-                }
+                displayElement.textContent = frames[0];
+                let msg = `${frames.length} frame(s) processed. Click Start to animate.`;
+                 // Check if the event exists and originated from the load button for specific messaging
+                 if (typeof event !== 'undefined' && event && event.target && event.target.id === 'load-button') {
+                    msg = `${frames.length} frame(s) loaded from textarea. Click Start to animate.`;
+                 }
+                 displayMessage(msg);
 
             } else {
                 displayElement.textContent = 'No valid frames entered or loaded.';
                 displayMessage('Error: Please enter or load at least one frame.');
-                frames = []; // Ensure frames is empty if input was invalid
+                frames = [];
             }
              console.log("Frames processed:", frames);
         }
@@ -133,80 +163,55 @@
                 displayMessage("Nothing to save. Enter frames in the textarea first.");
                 return;
             }
-
-            // Create a Blob (Binary Large Object) from the text
             const blob = new Blob([textToSave], { type: 'text/plain' });
-
-            // Create a temporary URL for the Blob
             const url = URL.createObjectURL(blob);
-
-            // Create a temporary anchor element to trigger the download
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'ascii-animation.txt'; // Suggested filename
-            document.body.appendChild(a); // Append anchor to body (needed for Firefox)
-            a.click(); // Programmatically click the anchor to trigger download
-
-            // Clean up: remove the anchor and revoke the temporary URL
+            a.download = 'ascii-animation.txt';
+            document.body.appendChild(a);
+            a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-
             displayMessage("Animation frames saved as ascii-animation.txt");
             console.log("Save triggered.");
         }
 
         /**
-         * Triggers the hidden file input when the visible "Load Animation from File" button is clicked.
+         * Triggers the hidden file input.
          */
         function triggerFileInput() {
-            fileInput.click(); // Programmatically click the hidden file input
+            fileInput.click();
         }
 
         /**
-         * Handles the file selection event from the hidden file input.
-         * Reads the file content and loads it into the textarea.
-         * @param {Event} event - The file input change event object.
+         * Handles the file selection event. Reads the file and loads content.
          */
         function handleFileLoad(event) {
             const file = event.target.files[0];
             if (!file) {
                 displayMessage("No file selected.");
-                return; // No file selected
+                event.target.value = null; // Reset file input
+                return;
             }
-
-            // Check if the file type is plain text (basic check)
             if (file.type && !file.type.startsWith('text/plain')) {
                  displayMessage(`Error: Invalid file type (${file.type}). Please select a .txt file.`);
-                 // Reset file input value to allow selecting again
                  event.target.value = null;
                  return;
             }
 
-
             const reader = new FileReader();
-
-            // Define what happens when the file is successfully read
             reader.onload = function(e) {
-                const fileContent = e.target.result;
-                framesInput.value = fileContent; // Put content into the textarea
+                framesInput.value = e.target.result;
                 displayMessage(`File "${file.name}" loaded. Processing frames...`);
-                // Automatically process the loaded frames
-                loadFrames();
+                loadFrames(); // Automatically process after loading file content
             };
-
-            // Define what happens on a file read error
             reader.onerror = function(e) {
                 console.error("File reading error:", e);
                 displayMessage(`Error reading file "${file.name}".`);
             };
-
-            // Read the file as text
             reader.readAsText(file);
-
-            // Reset file input value so the 'change' event fires even if the same file is selected again
-            event.target.value = null;
+            event.target.value = null; // Reset file input
         }
-
 
         /**
          * Displays the next frame in the animation sequence.
@@ -218,15 +223,15 @@
                  return;
             }
             displayElement.textContent = frames[currentFrameIndex];
-            currentFrameIndex = (currentFrameIndex + 1) % frames.length; // Loop using modulo
+            currentFrameIndex = (currentFrameIndex + 1) % frames.length;
         }
 
         /**
          * Starts the animation loop.
          */
         function startAnimation() {
-            displayMessage(""); // Clear status message
-            if (intervalId !== null) { stopAnimation(); } // Stop existing animation
+            displayMessage("");
+            if (intervalId !== null) { stopAnimation(); }
 
             if (!frames || frames.length === 0) {
                  displayMessage("Error: Please load frames first (from textarea or file).");
@@ -259,7 +264,6 @@
 
         /**
          * Displays a message to the user.
-         * @param {string} text - The message to display.
          */
         function displayMessage(text) {
             messageBox.textContent = text;
@@ -267,14 +271,18 @@
 
 
         // --- Event Listeners ---
-        loadButton.addEventListener('click', loadFrames); // Load from textarea
-        saveButton.addEventListener('click', saveAnimation); // Save to file
-        loadFileButton.addEventListener('click', triggerFileInput); // Trigger hidden file input
-        fileInput.addEventListener('change', handleFileLoad); // Handle file selection
-        startButton.addEventListener('click', startAnimation); // Start animation
-        stopButton.addEventListener('click', stopAnimation); // Stop animation
+        loadButton.addEventListener('click', loadFrames);
+        saveButton.addEventListener('click', saveAnimation);
+        loadFileButton.addEventListener('click', triggerFileInput);
+        fileInput.addEventListener('change', handleFileLoad);
+        startButton.addEventListener('click', startAnimation);
+        stopButton.addEventListener('click', stopAnimation);
 
-        // Speed input change listener (unchanged)
+        // Alignment radio button listeners
+        alignLeftRadio.addEventListener('change', updateAlignment);
+        alignCenterRadio.addEventListener('change', updateAlignment);
+
+        // Speed input change listener
         speedInput.addEventListener('change', () => {
              const newSpeed = parseInt(speedInput.value, 10);
              if (isNaN(newSpeed) || newSpeed < 50) {
@@ -291,6 +299,7 @@
 
         // --- Initial State ---
         stopAnimation();
+        updateAlignment(); // Set initial alignment based on default checked radio
         displayMessage(""); // Clear initial message
 
     </script>
